@@ -492,7 +492,8 @@ class Driver {
   beginEmulation() {
     return Promise.all([
       emulation.enableNexus5X(this),
-      emulation.enableNetworkThrottling(this)
+      emulation.enableNetworkThrottling(this),
+      //emulation.enableCPUThrottling(this),
     ]);
   }
 
