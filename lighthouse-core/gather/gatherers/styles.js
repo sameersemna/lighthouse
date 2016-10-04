@@ -16,60 +16,89 @@
  */
 
 /**
- * @fileoverview Gathers a page's styles.
+ * @fileoverview Gathers the active style and stylesheets used on a page.
+ * "Active" means that if the stylesheet is removed at a later time
+ * (before endStylesCollect is called), this gatherer will not include it.
  */
 
 'use strict';
 
+const WebInspector = require('../../lib/web-inspector');
 const Gatherer = require('./gatherer');
 
-// const MAX_WAIT_TIMEOUT = 1000;
+function getCSSPropsInStyleSheet(parseTree, callback) {
+  let results = [];
+
+  parseTree.traverseByType('declaration', function(node, index, parent) {
+    const [name, val] = node.toString().split(':').map(item => item.trim());
+    results.push({
+      property: {name, val},
+      declarationRange: node.declarationRange,
+      selector: parent.selectors.toString()
+    });
+  });
+
+  return results;
+}
 
 class Styles extends Gatherer {
 
   constructor() {
     super();
-    this._stylesRecorder = [];
+    this._activeStyles = [];
     this._onStyleSheetAdded = this.onStyleSheetAdded.bind(this);
+    this._onStyleSheetRemoved = this.onStyleSheetRemoved.bind(this);
   }
 
-  onStyleSheetAdded(stylesheet) {
-    this._stylesRecorder.push(stylesheet);
+  onStyleSheetAdded(styleHeader) {
+    // Exclude stylesheets "injected" by extensions or ones that were added by
+    // users using the "inspector".
+    if (styleHeader.header.origin !== 'regular') {
+      return;
+    }
+
+    const parser = new WebInspector.SCSSParser();
+
+    this.driver.sendCommand('CSS.getStyleSheetText', {
+      styleSheetId: styleHeader.header.styleSheetId
+    }).then(content => {
+      styleHeader.content = content.text;
+      styleHeader.parsedContent = getCSSPropsInStyleSheet(
+          parser.parse(styleHeader.content, {syntax: 'css'}));
+      this._activeStyles.push(styleHeader);
+    });
+  }
+
+  onStyleSheetRemoved(styleHeader) {
+    for (let i = 0; i < this._activeStyles.length; ++i) {
+      const header = this._activeStyles[i].header;
+      if (header.styleSheetId === styleHeader.styleSheetId) {
+        this._activeStyles.splice(i, 1);
+        break;
+      }
+    }
   }
 
   beginStylesCollect(opts) {
-    // return new Promise((resolve, reject) => {
-    //   return opts.driver.sendCommand('DOM.enable')
-    //       .then(opts.driver.sendCommand('CSS.enable'))
-    //       .then(_ => {
-    //         opts.driver.on('CSS.styleSheetAdded', this._onStyleSheetAdded);
-    //       })
-    //       .catch(reject);
-    // });
-    opts.driver.sendCommand('DOM.enable');
-    opts.driver.sendCommand('CSS.enable');
-    opts.driver.on('CSS.styleSheetAdded', this._onStyleSheetAdded);
+    this.driver = opts.driver;
+    this.driver.sendCommand('DOM.enable');
+    this.driver.sendCommand('CSS.enable');
+    this.driver.on('CSS.styleSheetAdded', this._onStyleSheetAdded);
+    this.driver.on('CSS.styleSheetRemoved', this._onStyleSheetRemoved);
   }
 
-  endStylesCollect(opts) {
+  endStylesCollect() {
     return new Promise((resolve, reject) => {
-      opts.driver.off('CSS.styleSheetAdded', this._onStyleSheetAdded);
+      if (!this.driver || !this._activeStyles.length) {
+        reject('No active stylesheets were collected.');
+        return;
+      }
 
-      // Remove stylesheets "injected" by extension or added in the "inspector".
-      const styleHeaders = this._stylesRecorder.filter(styleHeader => {
-        return styleHeader.header.origin === 'regular';
-      }).map(styleHeader => {
-console.log(styleHeader.header.styleSheetId)
-        return opts.driver.sendCommand('CSS.getStyleSheetText', {
-          styleSheetId: styleHeader.header.styleSheetId
-        });
-      });
+      this.driver.off('CSS.styleSheetAdded', this._onStyleSheetAdded);
+      this.driver.off('CSS.styleSheetRemoved', this._onStyleSheetRemoved);
+      this.driver.sendCommand('CSS.disable');
 
-      return Promise.all(styleHeaders).then(results => {
-        opts.driver.sendCommand('CSS.disable').then(_ => {
-          resolve(results);
-        }, reject);
-      }, reject).catch(reject);
+      resolve(this._activeStyles);
     });
   }
 
@@ -77,10 +106,16 @@ console.log(styleHeader.header.styleSheetId)
     this.beginStylesCollect(options);
   }
 
-  afterPass(options) {
-    return this.endStylesCollect(options)
+  afterPass() {
+    return this.endStylesCollect()
       .then(stylesheets => {
-        this.artifact = stylesheets;
+        // Want unique stylesheets. Remove those with the same text content.
+        // An example where stylesheets are the same is if the user includes a
+        // stylesheet more than once (these have unique stylesheet ids according to
+        // the DevTools protocol). Another example is many instances of a shadow
+        // root that share the same <style> tag.
+        const map = new Map(stylesheets.map(s => [s.content, s]));
+        this.artifact =  Array.from(map.values());
       }, _ => {
         this.artifact = -1;
         return;

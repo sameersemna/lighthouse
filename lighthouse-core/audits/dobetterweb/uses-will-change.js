@@ -24,6 +24,56 @@
 const Audit = require('../audit');
 const Formatter = require('../../formatters/formatter');
 
+function getPropertyUse(stylesheets, opt_name, opt_val) {
+  if (!opt_name && !opt_val) {
+    return [];
+  }
+
+  return stylesheets.slice(0).filter(s => {
+    s.parsedContent = s.parsedContent.filter(item => {
+      const usedName = item.property.name === opt_name;
+      const usedVal = item.property.val.indexOf(opt_val) === 0; // val should start with needle
+      if (opt_name && !opt_val) {
+        return usedName;
+      } else if (!opt_name && opt_val) {
+        return usedVal;
+      } else if (opt_name && opt_val) {
+        return usedName && usedVal;
+      }
+    });
+    return s.parsedContent.length > 0;
+  });
+}
+
+function getFormattedStyleContent(content, parsedContent) {
+  const lines = content.split('\n');
+
+  const declarationRange = parsedContent.declarationRange;
+  const lineNum = declarationRange.startLine;
+  const start = declarationRange.startColumn;
+  const end = declarationRange.endColumn;
+
+  let rule;
+  if (declarationRange.startLine === declarationRange.endLine) {
+    rule = lines[lineNum].substring(start, end);
+  } else {
+    const startLine = lines[declarationRange.startLine];
+    const endLine = lines[declarationRange.endLine];
+    rule = lines.slice(startLine, endLine).reduce((prev, line) => {
+      prev.push(line.substring(
+          declarationRange.startColumn, declarationRange.endColumn));
+      return prev;
+    }, []).join('\n');
+  }
+
+  const block = `
+${parsedContent.selector} {
+  ${rule}
+} (line: ${lineNum}, row: ${start}, col: ${end})`;
+
+  return block;
+}
+
 class WillChangeAudit extends Audit {
 
   /**
@@ -33,8 +83,8 @@ class WillChangeAudit extends Audit {
     return {
       category: 'CSS',
       name: 'uses-will-change',
-      description: 'Site should use CSS will-change',
-      helpText: 'Consider using CSS <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/will-change" target="_blank">will-change</a>, which provides hints that an element will change. The browser uses these hints to make optimizations ahead of time, before the element changes.',
+      description: 'Site should use the new CSS flexbox',
+      helpText: 'You\'re using an older and <a href="https://developers.google.com/web/updates/2013/10/Flexbox-layout-isn-t-slow?hl=en" target="_blank">less performant</a> spec for <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Using_CSS_flexible_boxes" target="_blank">CSS Flexbox</a>: <code>display: box</code>. Consider using the newer version (<code>display: flex</code>).',
       requiredArtifacts: ['Styles']
     };
   }
@@ -52,16 +102,23 @@ class WillChangeAudit extends Audit {
       });
     }
 
-    // const pageHost = url.parse(artifacts.URL.finalUrl).host;
-    console.log(artifacts.Styles)
+    const sheetsUsingDisplayBox = getPropertyUse(artifacts.Styles, 'display', 'box');
 
-    const results = [];
+    const urlList = [];
+    sheetsUsingDisplayBox.forEach(sheet => {
+      sheet.parsedContent.forEach(props => {
+        urlList.push({
+          url: sheet.header.sourceURL,
+          misc: getFormattedStyleContent(sheet.content, props)
+        });
+      });
+    });
 
     return WillChangeAudit.generateAuditResult({
-      rawValue: results.length === 0,
+      rawValue: sheetsUsingDisplayBox.length === 0,
       extendedInfo: {
         formatter: Formatter.SUPPORTED_FORMATS.URLLIST,
-        value: results
+        value: urlList
       }
     });
   }
