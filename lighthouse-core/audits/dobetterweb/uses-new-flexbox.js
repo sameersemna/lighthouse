@@ -24,27 +24,41 @@
 const Audit = require('../audit');
 const Formatter = require('../../formatters/formatter');
 
-function getPropertyUse(stylesheets, opt_name, opt_val) {
-  if (!opt_name && !opt_val) {
+/**
+ * @param {!Array} stylesheets A list of stylesheets used by the page.
+ * @param {string=} propName Optional name of the CSS property to filter results
+ *     on. If propVal is not specified, all stylesheets that use the property are
+ *     returned. Otherwise, stylesheets that use the propName: propVal are returned.
+ * @param {string=} propVal Optional value of the CSS property to filter results on.
+ * @return {Array} A list of stylesheets that use the CSS property.
+ */
+function stylesheetsThatUsedProperty(stylesheets, propName, propVal) {
+  if (!propName && !propVal) {
     return [];
   }
 
   return stylesheets.slice(0).filter(s => {
     s.parsedContent = s.parsedContent.filter(item => {
-      const usedName = item.property.name === opt_name;
-      const usedVal = item.property.val.indexOf(opt_val) === 0; // val should start with needle
-      if (opt_name && !opt_val) {
+      const usedName = item.property.name === propName;
+      const usedVal = item.property.val.indexOf(propVal) === 0; // val should start with needle
+      if (propName && !propVal) {
         return usedName;
-      } else if (!opt_name && opt_val) {
+      } else if (!propName && propVal) {
         return usedVal;
-      } else if (opt_name && opt_val) {
+      } else if (propName && propVal) {
         return usedName && usedVal;
       }
+      return false;
     });
     return s.parsedContent.length > 0;
   });
 }
 
+/**
+ * @param {!string} content CSS text content.
+ * @param {!Object} parsedContent Parsed CSS content.
+ * @return {string} Formatted output
+ */
 function getFormattedStyleContent(content, parsedContent) {
   const lines = content.split('\n');
 
@@ -83,8 +97,8 @@ class UsesNewFlexBoxAudit extends Audit {
     return {
       category: 'CSS',
       name: 'uses-new-flexbox',
-      description: 'Site should use the new CSS flexbox',
-      helpText: 'You\'re using an older and <a href="https://developers.google.com/web/updates/2013/10/Flexbox-layout-isn-t-slow?hl=en" target="_blank">less performant</a> spec for <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Using_CSS_flexible_boxes" target="_blank">CSS Flexbox</a>: <code>display: box</code>. Consider using the newer version (<code>display: flex</code>).',
+      description: 'Site does not use the old CSS flexbox',
+      helpText: 'The older spec for CSS Flexbox (<code>display: box</code>) is deprecated and <a href="https://developers.google.com/web/updates/2013/10/Flexbox-layout-isn-t-slow?hl=en" target="_blank">less performant</a>. Consider using the <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Using_CSS_flexible_boxes" target="_blank">newer version</a> (<code>display: flex</code>), which does not suffer from the same issues.',
       requiredArtifacts: ['Styles']
     };
   }
@@ -104,7 +118,8 @@ class UsesNewFlexBoxAudit extends Audit {
 
     // TODO: consider usage of vendor prefixes
     // TODO: consider usage of other properties (e.g. box-flex)
-    const sheetsUsingDisplayBox = getPropertyUse(artifacts.Styles, 'display', 'box');
+    const sheetsUsingDisplayBox = stylesheetsThatUsedProperty(
+        artifacts.Styles, 'display', 'box');
 
     const urlList = [];
     sheetsUsingDisplayBox.forEach(sheet => {

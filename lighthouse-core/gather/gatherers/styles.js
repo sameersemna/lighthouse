@@ -26,7 +26,11 @@
 const WebInspector = require('../../lib/web-inspector');
 const Gatherer = require('./gatherer');
 
-function getCSSPropsInStyleSheet(parseTree, callback) {
+/**
+ * @param {!Artifacts} parseTree
+ * @return {!Array}
+ */
+function getCSSPropsInStyleSheet(parseTree) {
   let results = [];
 
   parseTree.traverseByType('declaration', function(node, index, parent) {
@@ -115,7 +119,7 @@ class Styles extends Gatherer {
         // the DevTools protocol). Another example is many instances of a shadow
         // root that share the same <style> tag.
         const map = new Map(stylesheets.map(s => [s.content, s]));
-        this.artifact =  Array.from(map.values());
+        this.artifact = Array.from(map.values());
       }, _ => {
         this.artifact = -1;
         return;
