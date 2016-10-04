@@ -16,7 +16,7 @@
  */
 
 /**
- * @fileoverview Audit a page to see if it should be using will-change.
+ * @fileoverview Audit a page to see if it is using the display: box flexbox.
  */
 
 'use strict';
@@ -74,7 +74,7 @@ ${parsedContent.selector} {
   return block;
 }
 
-class WillChangeAudit extends Audit {
+class UsesNewFlexBoxAudit extends Audit {
 
   /**
    * @return {!AuditMeta}
@@ -82,7 +82,7 @@ class WillChangeAudit extends Audit {
   static get meta() {
     return {
       category: 'CSS',
-      name: 'uses-will-change',
+      name: 'uses-new-flexbox',
       description: 'Site should use the new CSS flexbox',
       helpText: 'You\'re using an older and <a href="https://developers.google.com/web/updates/2013/10/Flexbox-layout-isn-t-slow?hl=en" target="_blank">less performant</a> spec for <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Using_CSS_flexible_boxes" target="_blank">CSS Flexbox</a>: <code>display: box</code>. Consider using the newer version (<code>display: flex</code>).',
       requiredArtifacts: ['Styles']
@@ -96,12 +96,14 @@ class WillChangeAudit extends Audit {
   static audit(artifacts) {
     if (typeof artifacts.Styles === 'undefined' ||
         artifacts.Styles === -1) {
-      return WillChangeAudit.generateAuditResult({
+      return UsesNewFlexBoxAudit.generateAuditResult({
         rawValue: -1,
         debugString: 'Styles gatherer did not run'
       });
     }
 
+    // TODO: consider usage of vendor prefixes
+    // TODO: consider usage of other properties (e.g. box-flex)
     const sheetsUsingDisplayBox = getPropertyUse(artifacts.Styles, 'display', 'box');
 
     const urlList = [];
@@ -114,7 +116,7 @@ class WillChangeAudit extends Audit {
       });
     });
 
-    return WillChangeAudit.generateAuditResult({
+    return UsesNewFlexBoxAudit.generateAuditResult({
       rawValue: sheetsUsingDisplayBox.length === 0,
       extendedInfo: {
         formatter: Formatter.SUPPORTED_FORMATS.URLLIST,
@@ -124,4 +126,4 @@ class WillChangeAudit extends Audit {
   }
 }
 
-module.exports = WillChangeAudit;
+module.exports = UsesNewFlexBoxAudit;

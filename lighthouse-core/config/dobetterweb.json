@@ -20,7 +20,7 @@
     "../audits/dobetterweb/no-document-write",
     "../audits/dobetterweb/no-websql",
     "../audits/dobetterweb/uses-http2",
-    "../audits/dobetterweb/uses-will-change",
+    "../audits/dobetterweb/uses-new-flexbox",
     "../audits/is-on-https"
   ],
 
@@ -53,7 +53,7 @@
     }, {
       "name": "Using modern CSS features",
       "audits": {
-        "uses-will-change": {
+        "uses-new-flexbox": {
           "expectedValue": false
         }
       }
