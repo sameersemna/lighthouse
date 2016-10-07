@@ -33,6 +33,7 @@ interface Results {
   url: string;
   aggregations: any[];
   audits: Object;
+  lighthouseVersion: string;
 };
 
 const fs = require('fs');
