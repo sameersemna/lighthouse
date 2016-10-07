@@ -1,5 +1,3 @@
-/// <reference path="../typings/index.d.ts" />
-
 const lighthouse = require('../../lighthouse-core');
 
 export default function ListAudits() {

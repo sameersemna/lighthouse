@@ -1,5 +1,3 @@
-/// <reference path="typings/index.d.ts" />
-
 /**
  * @license
  * Copyright 2016 Google Inc. All rights reserved.

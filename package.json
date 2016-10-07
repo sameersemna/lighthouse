@@ -25,6 +25,7 @@
     "dbw": "npm run start -- --config-path=lighthouse-core/config/dobetterweb.json --mobile=false --output=html --output-path=results.html"
   },
   "devDependencies": {
+    "@types/node": "^6.0.45",
     "babel-core": "^6.16.0",
     "babel-plugin-transform-es2015-destructuring": "^6.9.0",
     "coveralls": "^2.11.9",
